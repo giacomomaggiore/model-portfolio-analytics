@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
 FRED_EFFR_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EFFR"
+FRED_CPI_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCSL"
 
 INSTRUMENTS = (
     ("NTSG", "NTSG.DE", "WisdomTree Global Efficient Core UCITS ETF", 0.0025, "EUR"),
@@ -42,6 +43,7 @@ DERIVED_INSTRUMENTS = (
     ("NTSG_PROXY_EXTENDED", "Extended synthetic WisdomTree Global Efficient Core proxy", 0.0025, "USD"),
     ("USD_CASH_LONG", "Long synthetic USD cash index from FRED DGS3MO", 0.0, "USD"),
     ("USD_CASH_EFFR", "Synthetic USD cash index compounded from FRED EFFR", 0.0, "USD"),
+    ("CPIAUCSL", "US Consumer Price Index for All Urban Consumers", 0.0, "USD"),
     ("COM_PROXY", "Auspice Broad Commodity Total Return Index proxy net of COM TER", 0.0070, "USD"),
     ("DBMF_PROXY", "WTMF managed-futures peer with DBMF fee assumption", 0.0085, "USD"),
     ("GDE_PROXY", "Synthetic WisdomTree Efficient Gold Plus Equity proxy", 0.0020, "USD"),
@@ -104,6 +106,23 @@ def download_effr_cash_index() -> list[tuple[str, float]]:
     return rows
 
 
+def download_cpi_index() -> list[tuple[str, float]]:
+    """Download the monthly US CPI index level from FRED."""
+    request = Request(FRED_CPI_URL, headers={"User-Agent": "model-portfolio-backtest/1.0"})
+    with urlopen(request, timeout=30) as response:
+        reader = csv.DictReader(io.TextIOWrapper(response, encoding="utf-8"))
+        rows = [
+            (row["observation_date"], float(row["CPIAUCSL"]))
+            for row in reader
+            if row["CPIAUCSL"]
+        ]
+
+    if not rows:
+        raise ValueError("FRED CPI download contained no observations.")
+
+    return rows
+
+
 def write_metadata() -> None:
     """Write the instrument metadata used by the analysis."""
     path = DATA_DIR / "metadata.csv"
@@ -136,6 +155,14 @@ def main() -> None:
     except (HTTPError, URLError, ValueError) as error:
         failed_tickers.append("USD_CASH_EFFR")
         print(f"Could not download USD_CASH_EFFR: {error}")
+
+    try:
+        cpi_rows = download_cpi_index()
+        write_price_file("CPIAUCSL", cpi_rows)
+        print(f"Downloaded CPIAUCSL: {len(cpi_rows)} rows")
+    except (HTTPError, URLError, ValueError) as error:
+        failed_tickers.append("CPIAUCSL")
+        print(f"Could not download CPIAUCSL: {error}")
 
     if failed_tickers:
         raise SystemExit(f"Download failed for: {', '.join(failed_tickers)}")

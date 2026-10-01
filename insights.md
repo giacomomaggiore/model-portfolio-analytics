@@ -58,6 +58,13 @@ Record material assumptions, data decisions, results, and their interpretations 
 - Source: Yahoo Finance chart API, downloaded 2026-09-30.
 - Limitation: This is the MSCI World standard price index, not MSCI World Net Total Return. It excludes dividends, emerging markets, and small caps; it is used deliberately to provide a much longer developed-market equity correlation benchmark.
 
+## 2026-10-01 - Inflation correlation data
+
+- Data: Added `data/CPIAUCSL.CSV` from the FRED Consumer Price Index for All Urban Consumers (CPIAUCSL), downloaded 2026-10-01. It contains 955 monthly index observations from 1947-01-01 through 2026-08-01.
+- Method: Inflation is the year-over-year percent change in the monthly CPI index. Rolling correlations use 36 monthly observations between that rate and each asset's month-end total return.
+- Series: The panels compare inflation with actual WTMF for managed futures, BWX for the longest available global-government-bond proxy, and the fee-adjusted Auspice ABCTRI proxy for commodities.
+- Limitation: A correlation between monthly return and year-over-year CPI is descriptive and mixes a one-month asset-return horizon with a trailing 12-month price-change measure; it is not a causal estimate of inflation hedging.
+
 ## 2026-09-30 - Daily USD portfolio backtests
 
 - Data decision: Replaced the NTSG source with the EUR-traded `NTSG.DE` listing and added Yahoo Finance `EURUSD=X`, stored as `data/EURUSD.CSV`. Daily NTSG USD values equal the EUR adjusted price times USD per EUR. From 2024-11-13 through 2026-09-30, NTSG returned 18.99% in EUR and 27.03% in USD.
