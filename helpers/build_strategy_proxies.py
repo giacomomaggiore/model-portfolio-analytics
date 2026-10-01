@@ -2,14 +2,16 @@
 
 import csv
 from datetime import date
-from statistics import fmean
+from io import BytesIO
 from urllib.request import Request, urlopen
 
+from openpyxl import load_workbook
+
 from build_ntsg_proxy import (
-    DATA_DIR,
     build_capital_efficient_proxy,
     build_cash_index,
     download_cash_rates,
+    excess_return_index,
     gross_index,
     read_prices,
     write_prices,
@@ -17,8 +19,8 @@ from build_ntsg_proxy import (
 
 
 PPUT_URL = "https://cdn.cboe.com/api/global/us_indices/daily_prices/PPUT_History.csv"
+AUSPICE_DATA_URL = "https://s3.us-west-2.amazonaws.com/content.auspicecapital.com/AuspiceIndicesData.xlsx"
 COM_TER = 0.0070
-DBC_TER = 0.0085
 DBMF_TER = 0.0085
 WTMF_TER = 0.0065
 GDE_TER = 0.0020
@@ -35,19 +37,19 @@ def quarter(value: date) -> tuple[int, int]:
 
 
 def build_gde_proxy(cash_index: dict[date, float]) -> None:
-    """Build GDE from funded equities, cash collateral, and gold-futures P&L."""
+    """Build GDE from funded equities, cash collateral, and gold-futures excess-return P&L."""
     components = {"SPY": (0.9, 0.000945), "GLD": (0.9, 0.0040)}
     prices = {ticker: read_prices(f"{ticker}.CSV") for ticker in components}
     dates = common_dates(*prices.values())
     component_indices = {
         ticker: gross_index(price_series, dates, ter)
-        for ticker, (weight, ter) in components.items()
+        for ticker, (_, ter) in components.items()
         for price_series in (prices[ticker],)
     }
     values = build_capital_efficient_proxy(
         dates,
         {"SPY": (0.9, component_indices["SPY"])},
-        {"GLD": (0.9, component_indices["GLD"])},
+        {"GLD": (0.9, excess_return_index(component_indices["GLD"], cash_index, dates))},
         0.1,
         cash_index,
         GDE_TER,
@@ -56,31 +58,25 @@ def build_gde_proxy(cash_index: dict[date, float]) -> None:
     print(f"Wrote GDE_proxy.csv: {len(values)} rows")
 
 
-def build_com_proxy(cash_index: dict[date, float]) -> None:
-    """Build a simple long-or-cash broad-commodity trend proxy for COM."""
-    prices = read_prices("DBC.CSV")
-    all_dates = sorted(prices)
-    start_index = 252
-    dates = all_dates[start_index:]
-    gross_prices = gross_index(prices, all_dates, DBC_TER)
+def build_com_proxy() -> None:
+    """Build COM's index proxy from Auspice's published collateralized ABCTRI levels."""
+    request = Request(AUSPICE_DATA_URL, headers={"User-Agent": "model-portfolio-backtest/1.0"})
+    with urlopen(request, timeout=30) as response:
+        workbook = load_workbook(BytesIO(response.read()), read_only=True, data_only=True)
+
+    rows = workbook["ABCTRI"].iter_rows(values_only=True)
+    index_values = {
+        timestamp.date(): float(value)
+        for timestamp, value in rows
+        if timestamp is not None and value is not None
+    }
+    dates = sorted(index_values)
     values = {dates[0]: 100.0}
-    invested_in_commodities = prices[all_dates[start_index - 1]] >= fmean(
-        prices[current_date] for current_date in all_dates[start_index - 252:start_index]
-    )
-
-    for index, current_date in enumerate(dates[1:], start=start_index + 1):
-        previous_date = all_dates[index - 1]
+    for previous_date, current_date in zip(dates, dates[1:]):
         elapsed_days = (current_date - previous_date).days
-        if current_date.month != previous_date.month:
-            invested_in_commodities = prices[previous_date] >= fmean(
-                prices[lookback_date] for lookback_date in all_dates[index - 252:index]
-            )
-
-        commodity_return = gross_prices[current_date] / gross_prices[previous_date] - 1
-        cash_return = cash_index[current_date] / cash_index[previous_date] - 1
-        strategy_return = commodity_return if invested_in_commodities else cash_return
+        index_return_factor = index_values[current_date] / index_values[previous_date]
         fee_factor = (1 - COM_TER / 365) ** elapsed_days
-        values[current_date] = values[previous_date] * (1 + strategy_return) * fee_factor
+        values[current_date] = values[previous_date] * index_return_factor * fee_factor
 
     write_prices("COM_proxy.csv", values)
     print(f"Wrote COM_proxy.csv: {len(values)} rows")
@@ -132,7 +128,7 @@ def main() -> None:
     cash_index = build_cash_index(cash_dates, annualized_rates)
     write_prices("USD_CASH_LONG.CSV", cash_index)
     build_gde_proxy(cash_index)
-    build_com_proxy(cash_index)
+    build_com_proxy()
     build_dbmf_proxy()
     write_pput()
 

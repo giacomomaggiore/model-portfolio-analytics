@@ -1,4 +1,4 @@
 panel,start_month,end_month,monthly_returns
-actual_etfs,2024-12,2026-09,22
-synthetic_sensitivity,2011-02,2026-09,188
-underlying_exposures,2018-10,2026-09,96
+actual_etfs,2024-12,2026-08,21
+synthetic_sensitivity,2011-02,2026-08,187
+underlying_exposures,2018-10,2026-08,95

@@ -18,18 +18,18 @@ PANELS = {
         "DBMF": "DBMF.CSV",
         "GDE": "GDE.CSV",
         "TAIL": "TAIL.CSV",
-        "VT": "VT.CSV",
+        "MSCI_WORLD_USD": "MSCI_WORLD_USD.CSV",
     },
     "synthetic_sensitivity": {
         "NTSG_SYNTHETIC": "NTSG_proxy_extended.csv",
-        "COM_STYLE_PROXY": "COM_proxy.csv",
+        "COM_ABCTRI_PROXY": "COM_proxy.csv",
         "WTMF_AS_DBMF_PEER": "DBMF_proxy.csv",
         "GDE_SYNTHETIC": "GDE_proxy.csv",
         "PPUT_BENCHMARK": "PPUT.CSV",
-        "VT": "VT.CSV",
+        "MSCI_WORLD_USD": "MSCI_WORLD_USD.CSV",
     },
     "underlying_exposures": {
-        "GLOBAL_EQUITY": "VT.CSV",
+        "GLOBAL_EQUITY": "MSCI_WORLD_USD.CSV",
         "GLOBAL_BONDS": "BNDW.CSV",
         "COMMODITIES": "PDBC.CSV",
         "MANAGED_FUTURES": "WTMF.CSV",
@@ -48,20 +48,33 @@ PROXY_VALIDATIONS = {
 
 
 def read_prices(filename: str) -> dict[date, float]:
-    """Read one project price file."""
+    """Read one project price file; NTSG is converted from its EUR listing to USD."""
     with (DATA_DIR / filename).open(newline="") as file:
-        return {
+        prices = {
             date.fromisoformat(row["date"]): float(row["adjusted_price"])
             for row in csv.DictReader(file)
         }
+    if filename == "NTSG.CSV":
+        eurusd = read_prices("EURUSD.CSV")
+        fx_dates = sorted(eurusd)
+        latest_fx = {}
+        position = -1
+        for day in sorted(prices):
+            while position + 1 < len(fx_dates) and fx_dates[position + 1] <= day:
+                position += 1
+            if position < 0:
+                raise ValueError("EURUSD history starts after NTSG history.")
+            latest_fx[day] = eurusd[fx_dates[position]]
+        prices = {day: price * latest_fx[day] for day, price in prices.items()}
+    return prices
 
 
 def monthly_returns(prices: dict[date, float]) -> dict[tuple[int, int], float]:
-    """Calculate returns between the last available observations of calendar months."""
+    """Calculate returns between closed calendar months."""
     month_ends = {}
     for current_date, value in sorted(prices.items()):
         month_ends[(current_date.year, current_date.month)] = value
-    months = sorted(month_ends)
+    months = sorted(month_ends)[:-1]
     return {
         current_month: month_ends[current_month] / month_ends[previous_month] - 1
         for previous_month, current_month in zip(months, months[1:])
@@ -103,7 +116,7 @@ def write_panel(panel_name: str, files: dict[str, str]) -> tuple[tuple[int, int]
 
     names = list(files)
     with (OUTPUT_DIR / f"{panel_name}_correlations.csv").open("w", newline="") as file:
-        writer = csv.writer(file)
+        writer = csv.writer(file, lineterminator="\n")
         writer.writerow(("instrument", *names))
         for left_name in names:
             writer.writerow(
@@ -155,7 +168,7 @@ def validate_proxies() -> None:
         )
 
     with (OUTPUT_DIR / "proxy_validation.csv").open("w", newline="") as file:
-        writer = csv.writer(file)
+        writer = csv.writer(file, lineterminator="\n")
         writer.writerow(
             (
                 "instrument",
@@ -181,7 +194,7 @@ def main() -> None:
         )
 
     with (OUTPUT_DIR / "correlation_samples.csv").open("w", newline="") as file:
-        writer = csv.writer(file)
+        writer = csv.writer(file, lineterminator="\n")
         writer.writerow(("panel", "start_month", "end_month", "monthly_returns"))
         writer.writerows(summaries)
 

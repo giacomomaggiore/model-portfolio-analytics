@@ -93,6 +93,8 @@ def build_capital_efficient_proxy(
     cash_weight: float,
     cash_index: dict[date, float],
     annual_fee: float,
+    rebalance_months: set[int] | None = None,
+    rebalance_band: float | None = None,
 ) -> dict[date, float]:
     """Combine funded assets, cash collateral, and futures P&L with quarterly resets."""
     values = {dates[0]: 100.0}
@@ -108,7 +110,30 @@ def build_capital_efficient_proxy(
 
     for previous_date, current_date in zip(dates, dates[1:]):
         previous_value = values[previous_date]
-        if quarter(current_date) != quarter(previous_date):
+        scheduled_rebalance = (
+            previous_date.month in rebalance_months
+            and current_date.month != previous_date.month
+            if rebalance_months is not None
+            else quarter(current_date) != quarter(previous_date)
+        )
+        exceptional_rebalance = False
+        if rebalance_band is not None:
+            funded_weight = sum(
+                funded_units[name] * index[previous_date]
+                for name, (_, index) in funded_indices.items()
+            ) / previous_value
+            futures_weight = sum(
+                futures_units[name] * index[previous_date]
+                for name, (_, index) in futures_indices.items()
+            ) / previous_value
+            funded_target = sum(weight for weight, _ in funded_indices.values())
+            futures_target = sum(weight for weight, _ in futures_indices.values())
+            exceptional_rebalance = (
+                abs(funded_weight - funded_target) > rebalance_band
+                or abs(futures_weight - futures_target) > rebalance_band
+            )
+
+        if scheduled_rebalance or exceptional_rebalance:
             funded_units = {
                 name: weight * previous_value / index[previous_date]
                 for name, (weight, index) in funded_indices.items()
@@ -158,6 +183,8 @@ def build_proxy(annualized_rates: dict[date, float]) -> dict[date, float]:
         0.1,
         cash_index,
         NTSG_TER,
+        {2, 5, 8, 11},
+        0.05,
     )
 
     write_prices("USD_CASH.CSV", cash_index)
@@ -203,6 +230,8 @@ def build_extended_proxy(annualized_rates: dict[date, float]) -> dict[date, floa
         0.1,
         cash_index,
         NTSG_TER,
+        {2, 5, 8, 11},
+        0.05,
     )
 
 
