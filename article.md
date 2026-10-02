@@ -22,7 +22,7 @@ Prima di parlare di correlazioni, serie storiche e metriche di performance; teng
 
 ---
 
-Tornando però alla necessità di vedere numeri e % di crescita, sono partito dallo studio delle correlazioni dei ritorni mensili su finestra di un anno degli strumenti in mio portafoglio con un proxy del mercato azionari mondiale, l'MSCI World Price INdex (non trattandosi di un etf, non è un indice investibile, ma per questo scopo, la differenza è trascurabile).
+Tornando però alla necessità di vedere numeri e % di crescita, sono partito dallo studio della correlazione rolling a 52 settimane dei rendimenti settimanali Friday-to-Friday degli strumenti in mio portafoglio con l'MSCI World Standard Price Index in USD. L'indice non è investibile, esclude dividendi, mercati emergenti e small cap ed è usato soltanto per misurare il co-movimento con il mercato azionario. Gli ETF sono invece rappresentati da prezzi adjusted total return, che includono le distribuzioni.
 
 _(Tengo a precisare che, almeno per il momento, essendoa cora in fase di ottimizzazione, non sono tanto interessato alla performance o le correlazioni del portafoglio nel suo intero, bensì allo studio delle singole asset come strumenti potenzialmente complemetari tra loro, motivo per cui i pesi del portafoglio subiranno prpbabilmente modifiche e ribilanciamenti nel corso del tempo)
 
@@ -49,7 +49,7 @@ Ulteriormente incurito dagli asset in portafoglio, mi sono messo a srtudiare la 
 
 Tornando (finalmente) all'hot topic del backtest, inizio con un semplice grafico (limitato):
 
-Come si può facilmente notare, anhe in questo caso, i dati (seppur chiari) sono solo rumore: poco più di un anno di ritorni NON dicono assolutamente nulla e sono tanto di quanto più lontano dalla teoria del model portfolio presentato, non riuscendo a dimsotrare comportamenti diversi in regimi di mercato diversi.
+Come si può facilmente notare, anhe in questo caso, i dati (seppur chiari) sono solo rumore: il backtest degli ETF reali va dal 13 novembre 2024 al 30 settembre 2026, quasi 23 mesi che NON dicono assolutamente nulla e sono tanto di quanto più lontano dalla teoria del model portfolio presentato, non riuscendo a dimsotrare comportamenti diversi in regimi di mercato diversi.
 
 []
 
@@ -65,9 +65,24 @@ Synthetic sensitivity: 2019-05-08 to 2026-09-30
 
 I dati, sempre poco significanti, dimostrano un pattern simile:
 - cagr leggermente peggio di un 100 stocks, molto meglio di iun 60/40
-- volatilità leggermente piu alta diun 60/40, ma molto meglio di un 60/40
+- volatilità del 12,74%: leggermente più alta dell'11,68% del 60/40, ma molto più bassa del 18,70% di VT
+- massimo drawdown del -22,42%, praticamente uguale al -22,35% del 60/40 durante il Covid; il vantaggio è netto solo rispetto al -34,24% di VT
 - di conseguemza, sharpe ratio migliore di entrambi (but, again: con lo sharpe ratio non ci paghi l'affitto!)
 
+
+---
+
+## Appendice tecnica: serie utilizzate
+
+| Strumento o benchmark | Esposizione studiata | Serie utilizzata | Classificazione e limite principale |
+| --- | --- | --- | --- |
+| NTSG | 90% azioni globali sviluppate + 60% futures obbligazionari globali | NTSG reale; VT e BNDW per descrivere le esposizioni; proxy esteso con SPY, EFA ed EWC per il 90% azionario, IEF e BWX per il 60% obbligazionario nozionale e cash per il 10% finanziato | ETF reale, proxy descrittivi e proxy sintetico. Il proxy esteso non replica filtri ESG, pesi valutari, otto futures sovrani, roll e collateral multi-valuta. Applica retroattivamente metodologia e TER attuali, introducendo look-ahead bias. |
+| COM | Commodity con trend following long/flat | COM reale; PDBC come proxy descrittivo; Auspice Broad Commodity Total Return Index al netto del TER per la storia lunga | ETF reale, proxy descrittivo e indice pubblicato. La storia dell'indice precedente al 30 settembre 2010 è simulata dall'emittente. |
+| DBMF | Managed futures | DBMF reale; WTMF come peer descrittivo | ETF reale e peer, non una ricostruzione del Dynamic Beta Engine. WTMF non viene usato per retrodatare DBMF nel backtest. |
+| GDE | 90% azioni large cap USA + 90% futures sull'oro | GDE reale; SPY e GLD per descrivere le esposizioni; proxy sintetico 90/90 | ETF reale, proxy descrittivi e modello sintetico. Il proxy non ricostruisce le regole attive e di roll del fondo. |
+| TAIL | Treasury USA + put SPX out-of-the-money | TAIL reale; PPUT soltanto come benchmark separato | ETF reale e benchmark non sostitutivo. PPUT contiene un portafoglio S&P 500 più put mensili al 5% OTM; TAIL contiene soprattutto Treasury e una ladder dinamica di put. PPUT non è un proxy di TAIL. |
+| MSCI World | Benchmark azionario per le correlazioni | MSCI World Standard Price Index in USD | Indice non investibile e price return: esclude dividendi, mercati emergenti e small cap. Serve solo a misurare il co-movimento azionario. |
+| 60/40 e VT | Benchmark del backtest | 60% VT / 40% BNDW e 100% VT | ETF total return reali, ribilanciati mensilmente nel 60/40. Non hanno lo stesso livello di esposizione nozionale del model portfolio. |
 
 ---
 
